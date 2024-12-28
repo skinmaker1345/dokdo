@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import Discord, { Embed, EmbedBuilder, Collection, Attachment, ButtonBuilder, ButtonStyle, Message } from 'discord.js'
+import Discord, { Embed, EmbedBuilder, Collection, Attachment, ButtonBuilder, ButtonStyle, Message, ActionRow, ChatInputCommandInteraction, ComponentType, TextInputStyle } from 'discord.js'
 import type { Client, Context } from '../'
 import { ProcessManager, inspect, isInstance, isGenerator } from '../utils'
 
@@ -7,7 +7,43 @@ export async function js (message: Context, parent: Client): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { client } = parent // for eval
   const isMessage = message instanceof Message
-  if (isMessage && !message.data.args) {
+
+  let content = isMessage
+    ? message.data.args
+    : message.options.getString('content')
+
+  if (!isMessage && !message.options.getString('content')) {
+    await (message as ChatInputCommandInteraction).showModal({
+      title: 'JS Eval',
+      components: [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.TextInput,
+              style: TextInputStyle.Paragraph,
+              placeholder: 'Enter JS Code',
+              customId: 'content'
+            }
+          ]
+        }
+      ]
+    })
+
+    const modalInteraction = await message.awaitModalSubmit({
+      time: 300_000
+    }).catch(() => null)
+
+    if (!modalInteraction) return
+
+    content = modalInteraction.fields.getTextInputValue('content')
+    if (!content) {
+      await modalInteraction.reply('Missing Arguments.')
+      return
+    }
+  }
+
+  if (!content) {
     message.reply('Missing Arguments.')
     return
   }
@@ -16,9 +52,7 @@ export async function js (message: Context, parent: Client): Promise<void> {
     resolve(
       // eslint-disable-next-line no-eval
       eval(
-        isMessage
-          ? message.data.args ?? ''
-          : message.options.getString('content', true)
+        content
       )
     )
   )
